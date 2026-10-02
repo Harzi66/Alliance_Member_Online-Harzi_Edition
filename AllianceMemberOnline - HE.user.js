@@ -2,7 +2,7 @@
 // @name        AllianceMemberOnline - HE
 // @namespace   AllianceMemberOnline - HE
 // @description Gives an overview of all online alliance members sorted by their member state.
-// @version     0.1.11
+// @version     0.1.12
 // @author      f@nTisi & Harzi
 // @description Original by ffi82, further developed by Harzi66
 // @include     http*://*.alliances.commandandconquer.com/*
@@ -20,6 +20,11 @@
 
 
 // Changelog Harzi Edition
+//
+//  0.1.12
+// - Verbesserte Start-/Wartelogik für Firefox
+// - Wartet zusätzlich auf die vollständige Initialisierung von ClientLib/MainData/Alliance
+// - Kein manueller Seiten-Reload mehr erforderlich, wenn die Spieloberfläche verzögert lädt
 //
 //  0.1.11
 // - Menüeintrag über die native ScriptsButton.Add()-Funktion
@@ -1139,27 +1144,67 @@
 
             try {
 
-                if (
-                    typeof qx != 'undefined' &&
+                // ========================================================
+                // Auf die vollständige Initialisierung des Spiels warten
+                // ========================================================
+                //
+                // Firefox kann beim ersten Seitenaufruf die Spieloberfläche
+                // bereits anzeigen, obwohl ClientLib/MainData/Alliance
+                // noch nicht vollständig verfügbar sind.
+                //
+                // Deshalb prüfen wir zusätzlich zu BAR_NAVIGATION auch
+                // die für AllianceMemberOnline benötigten Datenobjekte.
+                // ========================================================
 
-                    qx.core.Init.getApplication() &&
-
+                var application =
+                    typeof qx !== 'undefined' &&
+                    qx.core &&
                     qx.core.Init
-                    .getApplication()
-                    .getUIItem(
-                        ClientLib.Data.Missions.PATH.BAR_NAVIGATION
-                    ) &&
+                        ? qx.core.Init.getApplication()
+                        : null;
 
-                    qx.core.Init
-                    .getApplication()
-                    .getUIItem(
-                        ClientLib.Data.Missions.PATH.BAR_NAVIGATION
-                    )
-                    .isVisible()
-                ) {
+                var mainData =
+                    typeof ClientLib !== 'undefined' &&
+                    ClientLib.Data &&
+                    ClientLib.Data.MainData &&
+                    typeof ClientLib.Data.MainData.GetInstance === 'function'
+                        ? ClientLib.Data.MainData.GetInstance()
+                        : null;
+
+                var alliance =
+                    mainData &&
+                    typeof mainData.get_Alliance === 'function'
+                        ? mainData.get_Alliance()
+                        : null;
+
+                var barNavigation =
+                    application &&
+                    ClientLib &&
+                    ClientLib.Data &&
+                    ClientLib.Data.Missions &&
+                    ClientLib.Data.Missions.PATH &&
+                    typeof application.getUIItem === 'function'
+                        ? application.getUIItem(
+                            ClientLib.Data.Missions.PATH.BAR_NAVIGATION
+                        )
+                        : null;
+
+                var gameReady =
+                    !!application &&
+                    !!barNavigation &&
+                    barNavigation.isVisible() &&
+                    !!mainData &&
+                    !!alliance &&
+                    typeof alliance.get_MemberDataAsArray === 'function' &&
+                    typeof alliance.get_NumMembers === 'function';
+
+                if (gameReady) {
+
+                    console.log(
+                        "AllianceMemberOnline: Spiel vollständig initialisiert."
+                    );
 
                     createClass();
-
 
                     window.AllianceMemberOnline.Main
                         .getInstance();
@@ -1200,6 +1245,8 @@
 
                 } else {
 
+                    // Spiel noch nicht vollständig bereit.
+                    // Erneut prüfen, ohne einen Seiten-Reload zu benötigen.
                     window.setTimeout(
                         AllianceMemberOnline_checkIfLoaded,
                         1000
